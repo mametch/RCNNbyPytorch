@@ -1,17 +1,24 @@
 import os
 import sys
-import numpy
+import numpy as np
+import argparse
 from PIL import Image, ImageDraw
 import torch
 import torchvision
 from torchvision.ops.boxes import nms
-#import torchvision.transforms.functional as F
+import torchvision.transforms.functional as F
 
-nms_th = 0.5
-score_th = 0.8
-img_path = 'images/sample.jpg'
+parser = argparse.ArgumentParser(description='Mask R-CNN with Pytorch and Torchvision')
+train_set = parser.add_mutually_exclusive_group()
+parser.add_argument('--img_path', default='images/sample3.jpg', type=str,
+                    help='input image path')
+parser.add_argument('--score_th', default=0.8, type=float,
+                    help='Confidence score threshold')
+parser.add_argument('--nms_th', default=0.5, type=float,
+                    help='NMS threshold')
+args = parser.parse_args()
 
-# chose device
+# device
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 # pretrained COCO
@@ -20,37 +27,37 @@ model.to(device)
 model.eval()
 
 # load image and input
-img = Image.open(img_path)
+name, ext = os.path.splitext(args.img_path)
+img = Image.open(args.img_path)
 image_tensor = torchvision.transforms.functional.to_tensor(img)
 with torch.no_grad():
-    pred = model([image_tensor.to(device)])
+    pred = model([image_tensor.to(device)])[0]
 
-# Retrieve bounding box and confidence score
-boxes = pred[0]['boxes']
-scores = pred[0]['scores']
+# Excluding bboxes with low confidence scores
+ToF = np.where(pred['scores'] > args.score_th, True, False)
+boxes = pred['boxes'][ToF]
+scores = pred['scores'][ToF]
 
 # Non-Maximum Suppression (Reduce bounding box)
-index = nms(boxes, scores, nms_th)
+index = nms(boxes, scores, args.nms_th)
 
 # Process one bbox at a time
-d = ImageDraw.Draw(img)
-for ind in index:
-    # Excluding bboxes with low confidence scores
-    if scores[ind] < score_th: continue
-    
-    # Excluding non-person labels (Person label is "1")
-    if pred[0]['labels'][ind] != 1: continue
+for i, ind in enumerate(index):
+
+    # Skip non-person labels (Person label is "1")
+    if pred['labels'][ind] != 1: continue
 
     # Draw bbox
     x0, y0, x1, y1 = boxes[ind].round()
+    img_cp = img.copy()
+    d = ImageDraw.Draw(img_cp)
     d.rectangle([(x0, y0), (x1, y1)], outline='green', width=3)
 
-# Save the image drawn bbox
-name, ext = os.path.splitext(img_path)[0]
-save_path = name + '_bbox' + ext
-img.save(save_path)
+    # Save the image drawn bbox
+    save_path = name + '_bbox' + str(i) + ext
+    img_cp.save(save_path)
 
-# Convert the output mask image to PIL and save
-mask_img = F.to_pil_image(pred[0]['masks'][ind].cpu())
-save_path = name + '_mask' + ext
-mask_img.save(save_path)
+    # Convert the output mask image to PIL and save
+    mask_img = F.to_pil_image(pred['masks'][ind].cpu())
+    save_path = name + '_mask' + str(i) + ext
+    mask_img.save(save_path)
