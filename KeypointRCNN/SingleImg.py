@@ -37,6 +37,7 @@ with torch.no_grad():
 ToF = np.where(pred['scores'] > args.score_th, True, False)
 boxes = pred['boxes'][ToF]
 scores = pred['scores'][ToF]
+labels = pred['labels'][ToF]
 keypoints = pred['keypoints']
 
 # Non-Maximum Suppression (Reduce bounding box)
@@ -46,7 +47,7 @@ index = nms(boxes, scores, args.nms_th)
 for i, ind in enumerate(index):
 
     # Skip non-person labels (Person label is "1")
-    if pred['labels'][ind] != 1: continue
+    if labels[ind] != 1: continue
 
     # Draw bbox
     x0, y0, x1, y1 = boxes[ind].round()

@@ -1,6 +1,7 @@
 import os
 import sys
 import glob
+import json
 import numpy as np
 import argparse
 from PIL import Image, ImageDraw
@@ -13,7 +14,11 @@ parser = argparse.ArgumentParser(description='Mask R-CNN with Pytorch and Torchv
 train_set = parser.add_mutually_exclusive_group()
 parser.add_argument('--dir_path', default='images', type=str,
                     help='input image path')
-parser.add_argument('--score_th', default=0.8, type=float,
+parser.add_argument('--bbox_path', default='BboxOut', type=str,
+                    help='input image path')
+parser.add_argument('--mask_path', default='MaskOut', type=str,
+                    help='input image path')
+parser.add_argument('--score_th', default=0.5, type=float,
                     help='Confidence score threshold')
 parser.add_argument('--nms_th', default=0.5, type=float,
                     help='NMS threshold')
@@ -27,12 +32,23 @@ model = torchvision.models.detection.maskrcnn_resnet50_fpn(pretrained=True)
 model.to(device)
 model.eval()
 
-# Get image absolute paths
-img_list = glob.glob(os.path.join(args.dir_path, '*'))
-for img_path in img_list:
+# Saves
+glob = glob.glob(os.path.join(args.dir_path, '**'), recursive=True)
+dir_list = [p for p in glob if os.path.isdir(p)]
+for p in dir_list:
+    os.makedirs(p.replace(args.dir_path, args.bbox_path), exist_ok=True)
+    os.makedirs(p.replace(args.dir_path, args.mask_path), exist_ok=True)
 
-    # load image and input
+img_list = [p for p in glob if os.path.isfile(p)]
+for img_path in img_list:
+    # File existence check
     name, ext = os.path.splitext(img_path)
+    if os.path.isfile(name.replace(args.dir_path, args.bbox_path) + '.json'):
+        continue
+
+    ImDict = {}
+
+    # Load image and input
     img = Image.open(img_path)
     image_tensor = torchvision.transforms.functional.to_tensor(img)
     with torch.no_grad():
@@ -42,6 +58,7 @@ for img_path in img_list:
     ToF = np.where(pred['scores'] > args.score_th, True, False)
     boxes = pred['boxes'][ToF]
     scores = pred['scores'][ToF]
+    labels = pred['labels'][ToF]
     masks = pred['masks'][ToF]
 
     # Non-Maximum Suppression (Reduce bounding box)
@@ -51,19 +68,17 @@ for img_path in img_list:
     for i, ind in enumerate(index):
 
         # Skip non-person labels (Person label is "1")
-        if pred['labels'][ind] != 1: continue
+        if labels[ind] != 1: continue
 
-        # Draw bbox
-        x0, y0, x1, y1 = boxes[ind].round()
-        img_cp = img.copy()
-        d = ImageDraw.Draw(img_cp)
-        d.rectangle([(x0, y0), (x1, y1)], outline='green', width=3)
-
-        # Save the image drawn bbox
-        save_path = name + '_bbox' + str(i) + ext
-        img_cp.save(save_path)
+        # Save bbox
+        x0, y0, x1, y1 = boxes[ind].tolist()
+        ImDict[i] = [scores[ind].tolist(), x0, y0, x1, y1]
 
         # Convert the output mask image to PIL and save
         mask_img = F.to_pil_image(masks[ind].cpu())
-        save_path = name + '_mask' + str(i) + ext
+        save_path = name.replace(args.dir_path, args.mask_path) + '_' + str(i) + ext
         mask_img.save(save_path)
+
+    # Save bbox
+    with open(name.replace(args.dir_path, args.bbox_path) + '.json', 'w') as f:
+        json.dump(ImDict, f)

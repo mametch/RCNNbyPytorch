@@ -9,7 +9,7 @@ import torchvision
 from torchvision.ops.boxes import nms
 import torchvision.transforms.functional as F
 
-parser = argparse.ArgumentParser(description='Keypoint R-CNN with Pytorch and Torchvision')
+parser = argparse.ArgumentParser(description='Mask R-CNN with Pytorch and Torchvision')
 train_set = parser.add_mutually_exclusive_group()
 parser.add_argument('--dir_path', default='images', type=str,
                     help='input image path')
@@ -23,7 +23,7 @@ args = parser.parse_args()
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 # pretrained COCO
-model = torchvision.models.detection.keypointrcnn_resnet50_fpn(pretrained=True)
+model = torchvision.models.detection.maskrcnn_resnet50_fpn(pretrained=True)
 model.to(device)
 model.eval()
 
@@ -42,7 +42,8 @@ for img_path in img_list:
     ToF = np.where(pred['scores'] > args.score_th, True, False)
     boxes = pred['boxes'][ToF]
     scores = pred['scores'][ToF]
-    keypoints = pred['keypoints']
+    labels = pred['labels'][ToF]
+    masks = pred['masks'][ToF]
 
     # Non-Maximum Suppression (Reduce bounding box)
     index = nms(boxes, scores, args.nms_th)
@@ -51,7 +52,7 @@ for img_path in img_list:
     for i, ind in enumerate(index):
 
         # Skip non-person labels (Person label is "1")
-        if pred['labels'][ind] != 1: continue
+        if labels[ind] != 1: continue
 
         # Draw bbox
         x0, y0, x1, y1 = boxes[ind].round()
@@ -63,12 +64,7 @@ for img_path in img_list:
         save_path = name + '_bbox' + str(i) + ext
         img_cp.save(save_path)
 
-        # Draw keypoints
-        kps = keypoints[ind].cpu()
-        img_cp = img.copy()
-        d = ImageDraw.Draw(img_cp)
-        for kp in kps:
-            d.ellipse((kp[0]-3, kp[1]-3, kp[0]+3, kp[1]+3), fill='green')
-
-        save_path = name + '_keypoint' + str(i) + ext
-        img_cp.save(save_path)
+        # Convert the output mask image to PIL and save
+        mask_img = F.to_pil_image(masks[ind].cpu())
+        save_path = name + '_mask' + str(i) + ext
+        mask_img.save(save_path)
