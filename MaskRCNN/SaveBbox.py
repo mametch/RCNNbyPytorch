@@ -49,8 +49,11 @@ for img_path in img_list:
     ImDict = {}
 
     # Load image and input
-    img = Image.open(img_path)
-    image_tensor = torchvision.transforms.functional.to_tensor(img)
+    try:
+        img = Image.open(img_path)
+        image_tensor = torchvision.transforms.functional.to_tensor(img)
+    except:
+        continue
     with torch.no_grad():
         pred = model([image_tensor.to(device)])[0]
 
