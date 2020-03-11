@@ -1,5 +1,5 @@
-# MaskRCNNbyPytorch
-Mask RCNN by Pytorch and Torchvision.  
+# RCNNbyPytorch
+Mask and Keypoint RCNN by Pytorch and Torchvision.  
 
 # Installation
 * Python == 3.7.3  
