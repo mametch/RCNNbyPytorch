@@ -77,7 +77,6 @@ for img_path in img_list:
 
         # Save keypoints
         KeyDict[i] = keypoints[ind].tolist()
-        print(keypoints[ind].tolist())
 
     # Save bbox
     with open(name.replace(args.dir_path, args.bbox_path) + '.json', 'w') as f:
