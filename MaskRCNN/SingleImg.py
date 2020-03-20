@@ -10,7 +10,7 @@ import torchvision.transforms.functional as F
 
 parser = argparse.ArgumentParser(description='Mask R-CNN with Pytorch and Torchvision')
 train_set = parser.add_mutually_exclusive_group()
-parser.add_argument('--img_path', default='images/sample.jpg', type=str,
+parser.add_argument('--img_path', default='../images/sample.jpg', type=str,
                     help='input image path')
 parser.add_argument('--score_th', default=0.8, type=float,
                     help='Confidence score threshold')
@@ -34,8 +34,9 @@ with torch.no_grad():
     pred = model([image_tensor.to(device)])[0]
 
 # Excluding bboxes with low confidence scores
-ToF = np.where(pred['scores'] > args.score_th, True, False)
+ToF = np.where(pred['scores'].cpu() > args.score_th, True, False)
 boxes = pred['boxes'][ToF]
+labels = pred['labels'][ToF]
 scores = pred['scores'][ToF]
 masks = pred['masks'][ToF]
 
